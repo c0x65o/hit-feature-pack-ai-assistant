@@ -382,6 +382,22 @@ export function AiOverlay(props: {
               </div>
             ))}
 
+            {loading && (
+              <div
+                style={{
+                  alignSelf: 'flex-start',
+                  maxWidth: '85%',
+                  padding: '10px 10px',
+                  borderRadius: 12,
+                  whiteSpace: 'pre-wrap',
+                  border: '1px solid var(--hit-border, rgba(255,255,255,0.12))',
+                  background: 'rgba(255,255,255,0.06)',
+                }}
+              >
+                <div style={{ fontSize: 13, lineHeight: 1.4, opacity: 0.9 }}>Thinking…</div>
+              </div>
+            )}
+
             {pendingApproval && (
               <div
                 style={{
@@ -496,7 +512,7 @@ export function AiOverlay(props: {
                 fontWeight: 700,
               }}
             >
-              Send
+              {loading ? 'Sending…' : 'Send'}
             </button>
           </div>
 

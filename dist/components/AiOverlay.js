@@ -294,7 +294,15 @@ export function AiOverlay(props) {
                                     whiteSpace: 'pre-wrap',
                                     border: '1px solid var(--hit-border, rgba(255,255,255,0.12))',
                                     background: m.role === 'user' ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
-                                }, children: _jsx("div", { style: { fontSize: 13, lineHeight: 1.4 }, children: m.content }) }, idx))), pendingApproval && (_jsxs("div", { style: {
+                                }, children: _jsx("div", { style: { fontSize: 13, lineHeight: 1.4 }, children: m.content }) }, idx))), loading && (_jsx("div", { style: {
+                                    alignSelf: 'flex-start',
+                                    maxWidth: '85%',
+                                    padding: '10px 10px',
+                                    borderRadius: 12,
+                                    whiteSpace: 'pre-wrap',
+                                    border: '1px solid var(--hit-border, rgba(255,255,255,0.12))',
+                                    background: 'rgba(255,255,255,0.06)',
+                                }, children: _jsx("div", { style: { fontSize: 13, lineHeight: 1.4, opacity: 0.9 }, children: "Thinking\u2026" }) })), pendingApproval && (_jsxs("div", { style: {
                                     border: '1px solid rgba(245, 158, 11, 0.5)',
                                     borderRadius: 12,
                                     padding: 10,
@@ -358,5 +366,5 @@ export function AiOverlay(props) {
                                     height: 44,
                                     cursor: loading ? 'wait' : 'pointer',
                                     fontWeight: 700,
-                                }, children: "Send" })] }), _jsx("div", { style: { padding: '0 12px 12px', fontSize: 12, color: 'var(--hit-muted-foreground, rgba(255,255,255,0.65))' }, children: "Tip: Ctrl/Cmd+K to toggle. Esc to close." })] })), _jsx("button", { onClick: () => setOpen((v) => !v), style: buttonStyle, "aria-label": "Toggle AI assistant", children: "AI" })] }));
+                                }, children: loading ? 'Sending…' : 'Send' })] }), _jsx("div", { style: { padding: '0 12px 12px', fontSize: 12, color: 'var(--hit-muted-foreground, rgba(255,255,255,0.65))' }, children: "Tip: Ctrl/Cmd+K to toggle. Esc to close." })] })), _jsx("button", { onClick: () => setOpen((v) => !v), style: buttonStyle, "aria-label": "Toggle AI assistant", children: "AI" })] }));
 }
