@@ -73,6 +73,7 @@ export function AiOverlay(props) {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [pendingApproval, setPendingApproval] = useState(null);
+    const aiStateRef = useRef(null);
     const initialMessages = useMemo(() => [
         {
             role: 'assistant',
@@ -188,10 +189,17 @@ export function AiOverlay(props) {
                         'Content-Type': 'application/json',
                         ...(token ? { Authorization: `Bearer ${token}` } : {}),
                     },
-                    body: JSON.stringify({ message: text, context, history: messages.slice(-16) }),
+                    body: JSON.stringify({
+                        message: text,
+                        context: { ...context, aiState: aiStateRef.current || {} },
+                        history: messages.slice(-16),
+                    }),
                 });
                 const agentData = (await agentRes.json().catch(() => null));
                 if (agentRes.ok && agentData?.handled) {
+                    if (agentData?.memory && typeof agentData.memory === 'object') {
+                        aiStateRef.current = agentData.memory;
+                    }
                     if (agentData?.pending_approval?.toolName && agentData?.pending_approval?.input) {
                         setPendingApproval({
                             toolName: agentData.pending_approval.toolName,

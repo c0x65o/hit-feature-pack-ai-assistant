@@ -11,6 +11,7 @@ type AgentResponse = {
   handled?: boolean;
   final_message?: string;
   pending_approval?: { toolName?: string; input?: Record<string, any> } | null;
+  memory?: Record<string, any> | null;
 };
 
 type PendingApproval = {
@@ -98,6 +99,7 @@ export function AiOverlay(props: {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  const aiStateRef = useRef<Record<string, any> | null>(null);
 
   const initialMessages: ChatMessage[] = useMemo(
     () => [
@@ -233,11 +235,18 @@ export function AiOverlay(props: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ message: text, context, history: messages.slice(-16) }),
+          body: JSON.stringify({
+            message: text,
+            context: { ...context, aiState: aiStateRef.current || {} },
+            history: messages.slice(-16),
+          }),
         });
         const agentData = (await agentRes.json().catch(() => null)) as AgentResponse | null;
 
         if (agentRes.ok && agentData?.handled) {
+          if (agentData?.memory && typeof agentData.memory === 'object') {
+            aiStateRef.current = agentData.memory;
+          }
           if (agentData?.pending_approval?.toolName && agentData?.pending_approval?.input) {
             setPendingApproval({
               toolName: agentData.pending_approval.toolName,
