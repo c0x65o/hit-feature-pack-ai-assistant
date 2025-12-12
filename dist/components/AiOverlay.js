@@ -296,8 +296,10 @@ export function AiOverlay(props) {
             }
             // Tiny heuristic: "add a company named X" -> prefill dynamic http.request draft.
             // This is just to prove the approval UX; later the planner model will do this.
-            const addCompanyMatch = text.match(/\badd\s+(?:a\s+)?company\s+(?:named\s+)?(.+?)\s*$/i) ||
-                text.match(/\bcreate\s+(?:a\s+)?company\s+(?:named\s+)?(.+?)\s*$/i);
+            const addCompanyMatch = text.match(/\badd\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+(?:named\s+)?(.+?)\s*$/i) ||
+                text.match(/\bcreate\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+(?:named\s+)?(.+?)\s*$/i) ||
+                text.match(/\badd\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+for\s+(.+?)\s*$/i) ||
+                text.match(/\bcreate\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+for\s+(.+?)\s*$/i);
             if (addCompanyMatch?.[1]) {
                 const name = addCompanyMatch[1].trim().replace(/^"|"$/g, '');
                 setToolInputs((prev) => ({
