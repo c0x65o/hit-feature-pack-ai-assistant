@@ -350,6 +350,7 @@ export function AiOverlay(props) {
                                             const httpMethod = String(inputVals.method ?? 'GET').toUpperCase();
                                             const httpNeedsPath = isHttp && !String(inputVals.path ?? '').startsWith('/api/');
                                             const isWriteHttp = isHttp && httpMethod !== 'GET';
+                                            const httpNeedsApproval = isWriteHttp && t.requiresConfirmation !== false;
                                             const disableRun = runningTool === toolName ||
                                                 (!isHttp && t.readOnly === false) ||
                                                 needsProjectId ||
@@ -373,7 +374,11 @@ export function AiOverlay(props) {
                                                                     opacity: disableRun
                                                                         ? 0.6
                                                                         : 1,
-                                                                }, title: !isHttp && t.readOnly === false ? 'Write actions are staged next (draft → approve → apply).' : undefined, children: isHttp && isWriteHttp ? 'Draft' : !isHttp && t.readOnly === false ? 'Draft' : 'Run' })] }), toolName === 'marketing.get_wishlist_changes' && (_jsxs("div", { style: { display: 'flex', gap: 8, marginTop: 8 }, children: [_jsx("input", { value: inputVals.projectId ?? '', onChange: (e) => setToolInputValue(toolName, 'projectId', e.target.value), placeholder: "projectId", className: "hit-ai-input", style: {
+                                                                }, title: !isHttp && t.readOnly === false ? 'Write actions are staged next (draft → approve → apply).' : undefined, children: isHttp && httpNeedsApproval
+                                                                    ? 'Draft'
+                                                                    : !isHttp && t.readOnly === false
+                                                                        ? 'Draft'
+                                                                        : 'Run' })] }), toolName === 'marketing.get_wishlist_changes' && (_jsxs("div", { style: { display: 'flex', gap: 8, marginTop: 8 }, children: [_jsx("input", { value: inputVals.projectId ?? '', onChange: (e) => setToolInputValue(toolName, 'projectId', e.target.value), placeholder: "projectId", className: "hit-ai-input", style: {
                                                                     flex: 1,
                                                                     borderRadius: 10,
                                                                     border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',

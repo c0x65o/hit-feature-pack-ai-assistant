@@ -482,6 +482,7 @@ export function AiOverlay(props: {
                       const httpMethod = String(inputVals.method ?? 'GET').toUpperCase();
                       const httpNeedsPath = isHttp && !String(inputVals.path ?? '').startsWith('/api/');
                       const isWriteHttp = isHttp && httpMethod !== 'GET';
+                      const httpNeedsApproval = isWriteHttp && t.requiresConfirmation !== false;
                       const disableRun =
                         runningTool === toolName ||
                         (!isHttp && t.readOnly === false) ||
@@ -527,7 +528,11 @@ export function AiOverlay(props: {
                               !isHttp && t.readOnly === false ? 'Write actions are staged next (draft → approve → apply).' : undefined
                             }
                           >
-                            {isHttp && isWriteHttp ? 'Draft' : !isHttp && t.readOnly === false ? 'Draft' : 'Run'}
+                            {isHttp && httpNeedsApproval
+                              ? 'Draft'
+                              : !isHttp && t.readOnly === false
+                                ? 'Draft'
+                                : 'Run'}
                           </button>
                         </div>
 
