@@ -5,12 +5,22 @@ function summarizeHttpResult(input, data) {
     const path = String(input?.path ?? '');
     const status = data?.status;
     const resp = data?.response ?? data;
+    const safeStatus = typeof status === 'number' ? status : undefined;
+    const isError = typeof safeStatus === 'number' && safeStatus >= 400;
+    if (isError) {
+        const errMsg = (typeof resp === 'object' && resp && resp.error) ||
+            (typeof resp === 'object' && resp && resp.detail) ||
+            undefined;
+        if (safeStatus === 403 && path.includes('/api/crm/') && method === 'DELETE') {
+            return `⛔ Permission denied (status: 403). This delete requires a higher role (e.g. Sales Manager).`;
+        }
+        return `⚠️ Request failed${safeStatus ? ` (status: ${safeStatus})` : ''}${errMsg ? `: ${String(errMsg)}` : ''}.`;
+    }
     if (method === 'POST' && path.includes('/api/crm/companies') && status === 201) {
         const name = resp?.name || input?.body?.name;
         const id = resp?.id;
         return `✅ Created company${name ? ` **${name}**` : ''}.${id ? ` (id: ${id})` : ''}`;
     }
-    const safeStatus = typeof status === 'number' ? status : undefined;
     return `✅ Request completed${safeStatus ? ` (status: ${safeStatus})` : ''}.`;
 }
 function getStoredToken() {
@@ -176,7 +186,7 @@ export function AiOverlay(props) {
                         'Content-Type': 'application/json',
                         ...(token ? { Authorization: `Bearer ${token}` } : {}),
                     },
-                    body: JSON.stringify({ message: text, context }),
+                    body: JSON.stringify({ message: text, context, history: messages.slice(-16) }),
                 });
                 const agentData = (await agentRes.json().catch(() => null));
                 if (agentRes.ok && agentData?.handled) {
