@@ -301,7 +301,10 @@ export function AiOverlay(props) {
                 text.match(/\badd\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+for\s+(.+?)\s*$/i) ||
                 text.match(/\bcreate\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+for\s+(.+?)\s*$/i);
             if (addCompanyMatch?.[1]) {
-                const name = addCompanyMatch[1].trim().replace(/^"|"$/g, '');
+                let name = addCompanyMatch[1].trim().replace(/^"|"$/g, '');
+                // If the generic matcher captured a leading "for ...", normalize it.
+                if (name.toLowerCase().startsWith('for '))
+                    name = name.slice(4).trim();
                 setToolInputs((prev) => ({
                     ...prev,
                     'http.request': {
