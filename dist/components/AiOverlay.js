@@ -168,7 +168,7 @@ export function AiOverlay(props) {
         setPendingApproval(null);
         try {
             const token = getStoredToken();
-            // Agent first (dynamic, uses capabilities catalog)
+            // Agent only (single supported path)
             try {
                 const agentRes = await fetch('/api/proxy/ai/hit/ai/agent', {
                     method: 'POST',
@@ -191,23 +191,9 @@ export function AiOverlay(props) {
                 }
             }
             catch {
-                // fall back to chat
+                // handled below
             }
-            // Fallback chat
-            const res = await fetch('/api/proxy/ai/hit/ai/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ messages: nextMessages, context }),
-            });
-            const data = (await res.json().catch(() => null));
-            if (!res.ok) {
-                const errMsg = data?.detail || data?.error || res.statusText;
-                throw new Error(errMsg);
-            }
-            setMessages((prev) => [...prev, { role: 'assistant', content: data?.message || 'No response.' }]);
+            throw new Error('AI agent did not handle the request.');
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : 'Failed to send message.';
@@ -215,7 +201,7 @@ export function AiOverlay(props) {
                 ...prev,
                 {
                     role: 'assistant',
-                    content: `I couldn't reach the AI service (${msg}).`,
+                    content: `I couldn't process that (${msg}).`,
                 },
             ]);
         }
