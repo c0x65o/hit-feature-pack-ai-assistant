@@ -14,21 +14,10 @@ type ChatResponse = {
   request_id?: string;
 };
 
-type ToolCatalogResponse = {
-  user?: { userId?: string; email?: string; roles?: string[] };
-  tools?: Array<{
-    name: string;
-    description: string;
-    inputSchema?: Record<string, unknown>;
-    readOnly?: boolean;
-    tags?: string[];
-    requiresConfirmation?: boolean;
-  }>;
-};
-
-type ToolSearchResponse = {
-  query?: string;
-  candidates?: ToolCatalogResponse['tools'];
+type AgentResponse = {
+  handled?: boolean;
+  final_message?: string;
+  pending_approval?: { toolName?: string; input?: Record<string, any> } | null;
 };
 
 type PendingApproval = {
@@ -46,19 +35,6 @@ function summarizeHttpResult(input: Record<string, any>, data: any): string {
     const name = resp?.name || input?.body?.name;
     const id = resp?.id;
     return `✅ Created company${name ? ` **${name}**` : ''}.${id ? ` (id: ${id})` : ''}`;
-  }
-
-  if (method === 'GET' && (path.includes('/api/crm/companies') || path.includes('/api/crm/contacts'))) {
-    const items = resp?.items;
-    if (Array.isArray(items)) {
-      const kind = path.includes('/api/crm/contacts') ? 'contact' : 'company';
-      const topNames = items
-        .slice(0, 5)
-        .map((it: any) => it?.name)
-        .filter(Boolean)
-        .join(', ');
-      return `✅ Found **${items.length}** ${kind}${items.length === 1 ? '' : 's'}${topNames ? `: ${topNames}` : ''}`;
-    }
   }
 
   const safeStatus = typeof status === 'number' ? status : undefined;
@@ -81,9 +57,8 @@ function getStoredToken(): string | null {
 
 function getChatStorageKey(opts: { pathname?: string; userEmail?: string | null }): string {
   const email = (opts.userEmail || 'anon').toLowerCase();
-  // Keep it stable across refresh; scope per app user + pathname.
   const path = (opts.pathname || '/').split('?')[0].split('#')[0];
-  return `hit_ai_assistant_chat_v1:${email}:${path}`;
+  return `hit_ai_assistant_chat_v2:${email}:${path}`;
 }
 
 function loadChatState(key: string): { messages?: ChatMessage[]; input?: string } | null {
@@ -117,19 +92,13 @@ export function AiOverlay(props: {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tools, setTools] = useState<ToolCatalogResponse['tools'] | null>(null);
-  const [suggested, setSuggested] = useState<ToolCatalogResponse['tools'] | null>(null);
-  const [selectedTool, setSelectedTool] = useState<string | null>(null);
-  const [toolInputs, setToolInputs] = useState<Record<string, Record<string, any>>>({});
-  const [runningTool, setRunningTool] = useState<string | null>(null);
-  const [lastUserQuery, setLastUserQuery] = useState<string>('');
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+
   const initialMessages: ChatMessage[] = useMemo(
     () => [
       {
         role: 'assistant',
-        content:
-          "Hi — I'm the HIT assistant. Ask me what this page does, where to find something, or describe what you want to do and I'll guide you.",
+        content: "Hi — I'm the HIT assistant. Tell me what you want to do and I'll do it.",
       },
     ],
     []
@@ -148,18 +117,13 @@ export function AiOverlay(props: {
     return initialMessages;
   });
 
-  // Load saved input on mount/key change
   useEffect(() => {
     const saved = loadChatState(chatStorageKey);
-    if (saved?.input && typeof saved.input === 'string') {
-      setInput(saved.input);
-    }
+    if (saved?.input && typeof saved.input === 'string') setInput(saved.input);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatStorageKey]);
 
-  // Persist messages + draft input (survives refresh) until user clicks "New"
   useEffect(() => {
-    // Avoid writing gigantic payloads endlessly; keep last ~50 messages.
     const trimmed = messages.slice(-50);
     const t = window.setTimeout(() => {
       saveChatState(chatStorageKey, { messages: trimmed, input });
@@ -172,35 +136,8 @@ export function AiOverlay(props: {
   useEffect(() => {
     if (!open) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [open, messages.length]);
+  }, [open, messages.length, pendingApproval]);
 
-  // When opened, try to fetch dynamic tool catalog from the host app (optional).
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const token = getStoredToken();
-        const res = await fetch('/api/ai/tools', {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-        if (!res.ok) return;
-        const data = (await res.json().catch(() => null)) as ToolCatalogResponse | null;
-        if (!cancelled) setTools(data?.tools ?? null);
-      } catch {
-        // Optional: ignore
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
-
-  // Cmd/Ctrl+K to open
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const isK = e.key.toLowerCase() === 'k';
@@ -223,107 +160,50 @@ export function AiOverlay(props: {
       packName: props.packName,
       user: props.user,
       hitConfig: typeof window !== 'undefined' ? (window as any).__HIT_CONFIG : null,
-      tools: tools ? tools.map((t) => ({ name: t.name, description: t.description, readOnly: t.readOnly })) : null,
       origin: typeof window !== 'undefined' ? window.location.origin : null,
     }),
-    [props.packName, props.pathname, props.routeId, props.user, tools]
+    [props.packName, props.pathname, props.routeId, props.user]
   );
 
-  const defaultToolInput = useCallback(
-    (toolName: string): Record<string, any> => {
-      if (toolInputs[toolName]) return toolInputs[toolName]!;
+  const runApproval = useCallback(async () => {
+    if (!pendingApproval) return;
+    const toolName = pendingApproval.toolName;
+    const token = getStoredToken();
 
-      // Small convenience: if on /marketing/projects/[id], infer projectId.
-      const pathname = props.pathname || '';
-      const m = pathname.match(/^\/marketing\/projects\/([^/?#]+)/);
-      if (toolName === 'marketing.get_wishlist_changes' && m?.[1]) {
-        return { projectId: m[1], days: 12 };
+    setLoading(true);
+    try {
+      const res = await fetch('/api/ai/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          toolName,
+          input: { ...pendingApproval.input, approved: true },
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((data as any)?.error || res.statusText);
       }
 
-      if (toolName === 'crm.search_companies' || toolName === 'crm.search_contacts') {
-        return { query: lastUserQuery, pageSize: 25 };
-      }
-
-      if (toolName === 'http.request') {
-        return { method: 'GET', path: '/api/health', query: {}, body: {} };
-      }
-
-      return {};
-    },
-    [lastUserQuery, props.pathname, toolInputs]
-  );
-
-  const setToolInputValue = useCallback((toolName: string, key: string, value: any) => {
-    setToolInputs((prev) => ({
-      ...prev,
-      [toolName]: {
-        ...(prev[toolName] ?? {}),
-        [key]: value,
-      },
-    }));
-  }, []);
-
-  const runTool = useCallback(
-    async (toolName: string, overrideInput?: Record<string, any>) => {
-      try {
-        setRunningTool(toolName);
-        const token = getStoredToken();
-        const input = overrideInput ?? defaultToolInput(toolName);
-        const res = await fetch('/api/ai/execute', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ toolName, input }),
-        });
-
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          // If the host app doesn't implement execution, surface a friendly message.
-          if (res.status === 501) {
-            throw new Error((data as any)?.error || 'Tool execution not available in this app.');
-          }
-          throw new Error((data as any)?.error || res.statusText);
-        }
-
-        // Approval draft support (used by http.request for write methods).
-        if ((data as any)?.requiresApproval && (data as any)?.draft?.toolName) {
-          setPendingApproval({
-            toolName: (data as any).draft.toolName,
-            input: (data as any).draft.input ?? {},
-          });
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: 'assistant',
-              content:
-                `📝 Draft created and requires approval.\n\nReview the approval card below, then click Approve to execute.`,
-            },
-          ]);
-          return;
-        }
-
-        setPendingApproval(null);
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: toolName === 'http.request' ? summarizeHttpResult(input, data) : `✅ Done.`,
-          },
-        ]);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Tool execution failed.';
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: `⚠️ Tool failed: ${toolName}\n\n${msg}` },
-        ]);
-      } finally {
-        setRunningTool(null);
-      }
-    },
-    [defaultToolInput]
-  );
+      setPendingApproval(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: toolName === 'http.request' ? summarizeHttpResult(pendingApproval.input, data) : '✅ Done.',
+        },
+      ]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to run approval.';
+      setMessages((prev) => [...prev, { role: 'assistant', content: `⚠️ ${msg}` }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [pendingApproval]);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -331,28 +211,26 @@ export function AiOverlay(props: {
 
     setInput('');
     setLoading(true);
-    setLastUserQuery(text);
-    setPendingApproval(null);
 
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: text }];
     setMessages(nextMessages);
+    setPendingApproval(null);
 
     try {
-      // Try agent loop first (Codex-style multi-step). If it doesn't handle, fall back to chat.
+      const token = getStoredToken();
+
+      // Agent first (dynamic, uses capabilities catalog)
       try {
-        const token = getStoredToken();
         const agentRes = await fetch('/api/proxy/ai/hit/ai/agent', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({
-            message: text,
-            context,
-          }),
+          body: JSON.stringify({ message: text, context }),
         });
-        const agentData = await agentRes.json().catch(() => null);
+        const agentData = (await agentRes.json().catch(() => null)) as AgentResponse | null;
+
         if (agentRes.ok && agentData?.handled) {
           if (agentData?.pending_approval?.toolName && agentData?.pending_approval?.input) {
             setPendingApproval({
@@ -360,95 +238,21 @@ export function AiOverlay(props: {
               input: agentData.pending_approval.input,
             });
           }
-          const finalMsg = agentData?.final_message || 'Done.';
-          setMessages((prev) => [...prev, { role: 'assistant', content: finalMsg }]);
-          setLoading(false);
+          setMessages((prev) => [...prev, { role: 'assistant', content: agentData?.final_message || 'Done.' }]);
           return;
         }
       } catch {
-        // ignore and fall back to chat
+        // fall back to chat
       }
 
-      // Tiny heuristic: "add a company named X" -> prefill dynamic http.request draft.
-      // This is just to prove the approval UX; later the planner model will do this.
-      const addCompanyMatch =
-        text.match(/\badd\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+(?:named\s+)?(.+?)\s*$/i) ||
-        text.match(/\bcreate\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+(?:named\s+)?(.+?)\s*$/i) ||
-        text.match(/\badd\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+for\s+(.+?)\s*$/i) ||
-        text.match(/\bcreate\s+(?:a\s+)?(?:new\s+)?(?:customer|company)\s+for\s+(.+?)\s*$/i);
-      if (addCompanyMatch?.[1]) {
-        let name = addCompanyMatch[1].trim().replace(/^"|"$/g, '');
-        // If the generic matcher captured a leading "for ...", normalize it.
-        if (name.toLowerCase().startsWith('for ')) name = name.slice(4).trim();
-        setToolInputs((prev) => ({
-          ...prev,
-          'http.request': {
-            method: 'POST',
-            path: '/api/crm/companies',
-            query: {},
-            body: { name },
-            approved: false,
-          },
-        }));
-        // Ensure we select http.request if available.
-        setSelectedTool('http.request');
-
-        // End-user friendly: auto-run the action and skip generic chat response.
-        await runTool('http.request', {
-          method: 'POST',
-          path: '/api/crm/companies',
-          query: {},
-          body: { name },
-          approved: true,
-        });
-        setSuggested(null);
-        setLoading(false);
-        return;
-      }
-
-      // Step 1: dynamic tool search (small candidates list) for staging UI.
-      try {
-        const token = getStoredToken();
-        const qs = new URLSearchParams({ q: text, limit: '6' });
-        const sr = await fetch(`/api/ai/tool-search?${qs.toString()}`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-        if (sr.ok) {
-          const sd = (await sr.json().catch(() => null)) as ToolSearchResponse | null;
-          const cands = sd?.candidates ?? null;
-          // If we heuristically set a preferred tool (e.g. http.request), keep it selected.
-          const preferred = addCompanyMatch ? 'http.request' : null;
-          const ordered =
-            preferred && cands
-              ? [
-                  ...(cands.some((c) => c.name === preferred)
-                    ? cands.filter((c) => c.name === preferred)
-                    : tools?.filter((t) => t.name === preferred) ?? []),
-                  ...cands.filter((c) => c.name !== preferred),
-                ]
-              : cands;
-          setSuggested(ordered ?? null);
-          if (ordered && ordered.length > 0) {
-            setSelectedTool((prev) => prev || preferred || ordered[0]!.name);
-          }
-        }
-      } catch {
-        // optional
-      }
-
-      const token = getStoredToken();
+      // Fallback chat
       const res = await fetch('/api/proxy/ai/hit/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          messages: nextMessages,
-          context,
-        }),
+        body: JSON.stringify({ messages: nextMessages, context }),
       });
 
       const data = (await res.json().catch(() => null)) as ChatResponse | null;
@@ -458,16 +262,14 @@ export function AiOverlay(props: {
         throw new Error(errMsg);
       }
 
-      const answer = data?.message || 'No response.';
-      setMessages((prev) => [...prev, { role: 'assistant', content: answer }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: data?.message || 'No response.' }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to send message.';
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content:
-            `I couldn\'t reach the AI service yet (${msg}).\n\nIf you\'re running locally: start the ai module on port 8000 and set OPENAI_API_KEY (optional).`,
+          content: `I couldn't reach the AI service (${msg}).`,
         },
       ]);
     } finally {
@@ -511,12 +313,7 @@ export function AiOverlay(props: {
     flexDirection: 'column',
   };
 
-  // Inline CSS to avoid fighting global input/button styles.
-  const overlayCss = `
-    .hit-ai-input::placeholder { color: var(--hit-input-placeholder, var(--hit-muted-foreground, #9ca3af)); }
-    .hit-ai-input:disabled { opacity: 0.7; cursor: not-allowed; }
-    .hit-ai-send:disabled { opacity: 0.6; cursor: not-allowed; }
-  `;
+  const overlayCss = `\n    .hit-ai-input::placeholder { color: var(--hit-input-placeholder, var(--hit-muted-foreground, #9ca3af)); }\n    .hit-ai-input:disabled { opacity: 0.7; cursor: not-allowed; }\n    .hit-ai-send:disabled { opacity: 0.6; cursor: not-allowed; }\n  `;
 
   return (
     <div style={containerStyle}>
@@ -545,10 +342,6 @@ export function AiOverlay(props: {
                     if (typeof window !== 'undefined') window.localStorage.removeItem(chatStorageKey);
                   } catch {}
                   setPendingApproval(null);
-                  setSuggested(null);
-                  setSelectedTool(null);
-                  setToolInputs({});
-                  setLastUserQuery('');
                   setInput('');
                   setMessages(initialMessages);
                 }}
@@ -563,7 +356,6 @@ export function AiOverlay(props: {
                   padding: '6px 10px',
                 }}
                 aria-label="New chat"
-                title="Clear chat (keeps until you click this)"
               >
                 New
               </button>
@@ -595,278 +387,12 @@ export function AiOverlay(props: {
                   borderRadius: 12,
                   whiteSpace: 'pre-wrap',
                   border: '1px solid var(--hit-border, rgba(255,255,255,0.12))',
-                  background:
-                    m.role === 'user'
-                      ? 'rgba(59,130,246,0.25)'
-                      : 'rgba(255,255,255,0.06)',
+                  background: m.role === 'user' ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
                 }}
               >
                 <div style={{ fontSize: 13, lineHeight: 1.4 }}>{m.content}</div>
               </div>
             ))}
-
-            {suggested && suggested.length > 0 && (
-              <div
-                style={{
-                  border: '1px dashed var(--hit-border, rgba(0,0,0,0.15))',
-                  borderRadius: 12,
-                  padding: 10,
-                  background: 'rgba(0,0,0,0.02)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                  <div style={{ fontWeight: 700 }}>Suggested action (approve to run)</div>
-                  {suggested.length > 1 && (
-                    <select
-                      value={selectedTool ?? suggested[0]!.name}
-                      onChange={(e) => setSelectedTool(e.target.value)}
-                      style={{
-                        height: 32,
-                        borderRadius: 10,
-                        border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',
-                        padding: '0 10px',
-                        background: 'var(--hit-input-bg, var(--hit-surface, #fff))',
-                        color: 'var(--hit-foreground, #0f172a)',
-                      }}
-                      aria-label="Select suggested action"
-                    >
-                      {suggested.map((t) => (
-                        <option key={t.name} value={t.name}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {suggested
-                    .filter((t) => t.name === (selectedTool ?? suggested[0]!.name))
-                    .map((t) => {
-                      const toolName = t.name;
-                    const inputVals = defaultToolInput(toolName);
-                    const needsProjectId =
-                      toolName === 'marketing.get_wishlist_changes' && !inputVals.projectId;
-                      const needsQuery =
-                        (toolName === 'crm.search_companies' || toolName === 'crm.search_contacts') &&
-                        !String(inputVals.query ?? '').trim();
-                      const isHttp = toolName === 'http.request';
-                      const httpMethod = String(inputVals.method ?? 'GET').toUpperCase();
-                      const httpNeedsPath = isHttp && !String(inputVals.path ?? '').startsWith('/api/');
-                      const isWriteHttp = isHttp && httpMethod !== 'GET';
-                      // Even in "rogue mode", DELETE may still require approval unless explicitly enabled.
-                      const httpNeedsApproval =
-                        isWriteHttp && (httpMethod === 'DELETE' || t.requiresConfirmation !== false);
-                      const disableRun =
-                        runningTool === toolName ||
-                        (!isHttp && t.readOnly === false) ||
-                        needsProjectId ||
-                        needsQuery ||
-                        httpNeedsPath ||
-                        false;
-                    return (
-                      <div
-                        key={toolName}
-                        style={{
-                          border: '1px solid var(--hit-border, rgba(0,0,0,0.12))',
-                          borderRadius: 10,
-                          padding: 10,
-                          background: 'var(--hit-surface, #fff)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13 }}>{toolName}</div>
-                            <div style={{ fontSize: 12, color: 'var(--hit-muted-foreground, #64748b)' }}>
-                              {t.description}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => runTool(toolName)}
-                            disabled={disableRun}
-                            style={{
-                              borderRadius: 10,
-                              border: '1px solid var(--hit-primary, #3b82f6)',
-                              background: 'var(--hit-primary-light, rgba(59,130,246,0.12))',
-                              color: 'var(--hit-foreground, #0f172a)',
-                              padding: '0 12px',
-                              height: 36,
-                              cursor: runningTool === toolName ? 'wait' : 'pointer',
-                              fontWeight: 700,
-                              opacity:
-                                disableRun
-                                  ? 0.6
-                                  : 1,
-                            }}
-                            title={
-                              !isHttp && t.readOnly === false ? 'Write actions are staged next (draft → approve → apply).' : undefined
-                            }
-                          >
-                            {isHttp && httpNeedsApproval
-                              ? 'Draft'
-                              : !isHttp && t.readOnly === false
-                                ? 'Draft'
-                                : 'Run'}
-                          </button>
-                        </div>
-
-                        {toolName === 'marketing.get_wishlist_changes' && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                            <input
-                              value={inputVals.projectId ?? ''}
-                              onChange={(e) => setToolInputValue(toolName, 'projectId', e.target.value)}
-                              placeholder="projectId"
-                              className="hit-ai-input"
-                              style={{
-                                flex: 1,
-                                borderRadius: 10,
-                                border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',
-                                padding: '0 10px',
-                                height: 36,
-                                background: 'var(--hit-input-bg, var(--hit-surface, #fff))',
-                                color: 'var(--hit-foreground, #0f172a)',
-                                outline: 'none',
-                                boxSizing: 'border-box',
-                              }}
-                            />
-                            <input
-                              value={String(inputVals.days ?? 12)}
-                              onChange={(e) => setToolInputValue(toolName, 'days', e.target.value)}
-                              placeholder="days"
-                              className="hit-ai-input"
-                              style={{
-                                width: 84,
-                                borderRadius: 10,
-                                border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',
-                                padding: '0 10px',
-                                height: 36,
-                                background: 'var(--hit-input-bg, var(--hit-surface, #fff))',
-                                color: 'var(--hit-foreground, #0f172a)',
-                                outline: 'none',
-                                boxSizing: 'border-box',
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        {(toolName === 'crm.search_companies' || toolName === 'crm.search_contacts') && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                            <input
-                              value={inputVals.query ?? ''}
-                              onChange={(e) => setToolInputValue(toolName, 'query', e.target.value)}
-                              placeholder="search query (e.g. Hitcents, GM, John Smith)"
-                              className="hit-ai-input"
-                              style={{
-                                flex: 1,
-                                borderRadius: 10,
-                                border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',
-                                padding: '0 10px',
-                                height: 36,
-                                background: 'var(--hit-input-bg, var(--hit-surface, #fff))',
-                                color: 'var(--hit-foreground, #0f172a)',
-                                outline: 'none',
-                                boxSizing: 'border-box',
-                              }}
-                            />
-                            <input
-                              value={String(inputVals.pageSize ?? 25)}
-                              onChange={(e) => setToolInputValue(toolName, 'pageSize', e.target.value)}
-                              placeholder="pageSize"
-                              className="hit-ai-input"
-                              style={{
-                                width: 92,
-                                borderRadius: 10,
-                                border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',
-                                padding: '0 10px',
-                                height: 36,
-                                background: 'var(--hit-input-bg, var(--hit-surface, #fff))',
-                                color: 'var(--hit-foreground, #0f172a)',
-                                outline: 'none',
-                                boxSizing: 'border-box',
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        {toolName === 'http.request' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                              <select
-                                value={String(inputVals.method ?? 'GET')}
-                                onChange={(e) => setToolInputValue(toolName, 'method', e.target.value)}
-                                style={{
-                                  width: 110,
-                                  height: 36,
-                                  borderRadius: 10,
-                                  border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',
-                                  padding: '0 10px',
-                                  background: 'var(--hit-input-bg, var(--hit-surface, #fff))',
-                                  color: 'var(--hit-foreground, #0f172a)',
-                                }}
-                              >
-                                <option value="GET">GET</option>
-                                <option value="POST">POST</option>
-                                <option value="PATCH">PATCH</option>
-                                <option value="PUT">PUT</option>
-                                <option value="DELETE">DELETE</option>
-                              </select>
-                              <input
-                                value={inputVals.path ?? ''}
-                                onChange={(e) => setToolInputValue(toolName, 'path', e.target.value)}
-                                placeholder="/api/..."
-                                className="hit-ai-input"
-                                style={{
-                                  flex: 1,
-                                  borderRadius: 10,
-                                  border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',
-                                  padding: '0 10px',
-                                  height: 36,
-                                  background: 'var(--hit-input-bg, var(--hit-surface, #fff))',
-                                  color: 'var(--hit-foreground, #0f172a)',
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                }}
-                              />
-                            </div>
-                            <textarea
-                              value={JSON.stringify(inputVals.body ?? {}, null, 2)}
-                              onChange={(e) => {
-                                try {
-                                  setToolInputValue(toolName, 'body', JSON.parse(e.target.value || '{}'));
-                                } catch {
-                                  // ignore invalid JSON until corrected
-                                }
-                              }}
-                              placeholder="JSON body (for write methods)"
-                              style={{
-                                width: '100%',
-                                borderRadius: 10,
-                                border: '1px solid var(--hit-input-border, var(--hit-border, #e2e8f0))',
-                                padding: '10px 10px',
-                                minHeight: 84,
-                                background: 'var(--hit-input-bg, var(--hit-surface, #fff))',
-                                color: 'var(--hit-foreground, #0f172a)',
-                                outline: 'none',
-                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                                fontSize: 12,
-                                boxSizing: 'border-box',
-                              }}
-                            />
-                            {isWriteHttp && (
-                              <div style={{ fontSize: 12, color: 'var(--hit-muted-foreground, #64748b)' }}>
-                                Write methods will create an approval draft before executing.
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                    })}
-                </div>
-                <div style={{ fontSize: 12, marginTop: 8, color: 'var(--hit-muted-foreground, #64748b)' }}>
-                  Tip: ask naturally — I’ll run safe actions automatically.
-                </div>
-              </div>
-            )}
 
             {pendingApproval && (
               <div
@@ -878,70 +404,59 @@ export function AiOverlay(props: {
                 }}
               >
                 <div style={{ fontWeight: 700, marginBottom: 6 }}>Approval required</div>
-                <div style={{ fontSize: 12, color: 'var(--hit-muted-foreground, #64748b)', marginBottom: 8 }}>
-                  Review the draft below. Clicking approve will execute the write request.
-                </div>
-                <div
+                <pre
                   style={{
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
+                    fontSize: 12,
+                    lineHeight: 1.35,
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
+                    color: 'var(--hit-foreground, #0f172a)',
+                    background: 'var(--hit-surface, #fff)',
                     border: '1px solid var(--hit-border, rgba(0,0,0,0.12))',
                     borderRadius: 10,
                     padding: 10,
-                    background: 'var(--hit-surface, #fff)',
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{pendingApproval.toolName}</div>
-                  <pre
+                  {JSON.stringify(pendingApproval, null, 2)}
+                </pre>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setPendingApproval(null)}
                     style={{
-                      margin: 0,
-                      whiteSpace: 'pre-wrap',
-                      fontSize: 12,
-                      lineHeight: 1.35,
-                      fontFamily:
-                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                      borderRadius: 10,
+                      border: '1px solid var(--hit-border, #e2e8f0)',
+                      background: 'transparent',
                       color: 'var(--hit-foreground, #0f172a)',
+                      padding: '0 12px',
+                      height: 36,
+                      cursor: 'pointer',
+                      fontWeight: 700,
                     }}
                   >
-                    {JSON.stringify(pendingApproval.input, null, 2)}
-                  </pre>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
-                    <button
-                      onClick={() => setPendingApproval(null)}
-                      style={{
-                        borderRadius: 10,
-                        border: '1px solid var(--hit-border, #e2e8f0)',
-                        background: 'transparent',
-                        color: 'var(--hit-foreground, #0f172a)',
-                        padding: '0 12px',
-                        height: 36,
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() =>
-                        runTool(pendingApproval.toolName, { ...pendingApproval.input, approved: true })
-                      }
-                      disabled={runningTool === pendingApproval.toolName}
-                      style={{
-                        borderRadius: 10,
-                        border: '1px solid var(--hit-primary, #3b82f6)',
-                        background: 'var(--hit-primary-light, rgba(59,130,246,0.12))',
-                        color: 'var(--hit-foreground, #0f172a)',
-                        padding: '0 12px',
-                        height: 36,
-                        cursor: runningTool === pendingApproval.toolName ? 'wait' : 'pointer',
-                        fontWeight: 700,
-                        opacity: runningTool === pendingApproval.toolName ? 0.6 : 1,
-                      }}
-                    >
-                      Approve & Run
-                    </button>
-                  </div>
+                    Cancel
+                  </button>
+                  <button
+                    onClick={runApproval}
+                    disabled={loading}
+                    style={{
+                      borderRadius: 10,
+                      border: '1px solid var(--hit-primary, #3b82f6)',
+                      background: 'var(--hit-primary-light, rgba(59,130,246,0.12))',
+                      color: 'var(--hit-foreground, #0f172a)',
+                      padding: '0 12px',
+                      height: 36,
+                      cursor: loading ? 'wait' : 'pointer',
+                      fontWeight: 700,
+                      opacity: loading ? 0.6 : 1,
+                    }}
+                  >
+                    Approve & Run
+                  </button>
                 </div>
               </div>
             )}
+
             <div ref={bottomRef} />
           </div>
 
@@ -963,7 +478,7 @@ export function AiOverlay(props: {
                   send();
                 }
               }}
-              placeholder="Ask me to summarize this page, or describe what you want to do…"
+              placeholder="Ask me to do something…"
               className="hit-ai-input"
               style={{
                 flex: 1,
@@ -991,7 +506,6 @@ export function AiOverlay(props: {
                 height: 44,
                 cursor: loading ? 'wait' : 'pointer',
                 fontWeight: 700,
-                boxSizing: 'border-box',
               }}
             >
               Send
@@ -999,12 +513,12 @@ export function AiOverlay(props: {
           </div>
 
           <div style={{ padding: '0 12px 12px', fontSize: 12, color: 'var(--hit-muted-foreground, rgba(255,255,255,0.65))' }}>
-            Tip: <strong>Ctrl/Cmd + K</strong> to toggle. <strong>Esc</strong> to close.
+            Tip: Ctrl/Cmd+K to toggle. Esc to close.
           </div>
         </div>
       )}
 
-      <button onClick={() => setOpen((v) => !v)} style={buttonStyle} aria-label="Open AI assistant">
+      <button onClick={() => setOpen((v) => !v)} style={buttonStyle} aria-label="Toggle AI assistant">
         AI
       </button>
     </div>
