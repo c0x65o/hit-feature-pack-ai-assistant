@@ -1,7 +1,37 @@
-"use client";
 'use client';
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+/**
+ * Check if the given pathname is an auth-related page where the AI overlay should be hidden.
+ * This prevents showing the AI button on login, signup, register, and other auth pages.
+ */
+function isAuthPage(pathname) {
+    if (!pathname)
+        return false;
+    const normalized = pathname.toLowerCase();
+    // Common auth page patterns
+    const authPatterns = [
+        '/login',
+        '/signin',
+        '/sign-in',
+        '/signup',
+        '/sign-up',
+        '/register',
+        '/forgot-password',
+        '/reset-password',
+        '/verify-email',
+        '/verify',
+        '/auth/',
+        '/oauth/',
+        '/sso/',
+        '/mfa',
+        '/2fa',
+        '/totp',
+    ];
+    return authPatterns.some(pattern => normalized === pattern ||
+        normalized.startsWith(pattern + '/') ||
+        normalized.startsWith(pattern + '?'));
+}
 function summarizeHttpResult(input, data) {
     const method = String(input?.method ?? data?.method ?? '').toUpperCase();
     const path = String(input?.path ?? '');
@@ -78,12 +108,39 @@ export function AiOverlay(props) {
     // client renders "token" and inserts the button).
     const [hydrated, setHydrated] = useState(false);
     const [authToken, setAuthToken] = useState(null);
+    const [currentPathname, setCurrentPathname] = useState(props.pathname);
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [pendingApproval, setPendingApproval] = useState(null);
     const aiStateRef = useRef(null);
-    const shouldRender = hydrated && Boolean(authToken);
+    // Track pathname changes (for client-side navigation)
+    useEffect(() => {
+        if (typeof window === 'undefined')
+            return;
+        // Get current pathname from window.location if not provided via props
+        const getPathname = () => props.pathname || window.location.pathname;
+        setCurrentPathname(getPathname());
+        // Listen for popstate (back/forward navigation)
+        const handlePopstate = () => setCurrentPathname(getPathname());
+        window.addEventListener('popstate', handlePopstate);
+        // Poll for pathname changes (handles pushState/replaceState which don't trigger popstate)
+        const interval = setInterval(() => {
+            const newPath = getPathname();
+            setCurrentPathname(prev => prev !== newPath ? newPath : prev);
+        }, 500);
+        return () => {
+            window.removeEventListener('popstate', handlePopstate);
+            clearInterval(interval);
+        };
+    }, [props.pathname]);
+    // Determine if overlay should render:
+    // 1. Must be hydrated (client-side)
+    // 2. Must have auth token
+    // 3. Must not be on an auth page (unless hideOnAuthPages is explicitly false)
+    const hideOnAuth = props.hideOnAuthPages !== false;
+    const onAuthPage = hideOnAuth && isAuthPage(currentPathname);
+    const shouldRender = hydrated && Boolean(authToken) && !onAuthPage;
     // Keep token reasonably fresh in case it is set after initial render.
     useEffect(() => {
         setHydrated(true);
@@ -108,7 +165,7 @@ export function AiOverlay(props) {
             content: "Hi — I'm the HIT assistant. Tell me what you want to do and I'll do it.",
         },
     ], []);
-    const chatStorageKey = useMemo(() => getChatStorageKey({ pathname: props.pathname, userEmail: props.user?.email ?? null }), [props.pathname, props.user?.email]);
+    const chatStorageKey = useMemo(() => getChatStorageKey({ pathname: currentPathname, userEmail: props.user?.email ?? null }), [currentPathname, props.user?.email]);
     const [messages, setMessages] = useState(() => {
         const saved = loadChatState(chatStorageKey);
         if (saved?.messages && Array.isArray(saved.messages) && saved.messages.length > 0) {
@@ -157,13 +214,13 @@ export function AiOverlay(props) {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [shouldRender]);
     const context = useMemo(() => ({
-        pathname: props.pathname,
+        pathname: currentPathname,
         routeId: props.routeId,
         packName: props.packName,
         user: props.user,
         hitConfig: typeof window !== 'undefined' ? window.__HIT_CONFIG : null,
         origin: typeof window !== 'undefined' ? window.location.origin : null,
-    }), [props.packName, props.pathname, props.routeId, props.user]);
+    }), [props.packName, currentPathname, props.routeId, props.user]);
     const runApproval = useCallback(async () => {
         if (!pendingApproval)
             return;
@@ -305,7 +362,7 @@ export function AiOverlay(props) {
                             justifyContent: 'space-between',
                             padding: '12px 12px',
                             borderBottom: '1px solid var(--hit-border, rgba(255,255,255,0.12))',
-                        }, children: [_jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: [_jsx("div", { style: { fontWeight: 700 }, children: "AI Assistant" }), _jsx("div", { style: { fontSize: 12, color: 'var(--hit-muted-foreground, rgba(255,255,255,0.65))' }, children: props.pathname || '' })] }), _jsxs("div", { style: { display: 'flex', alignItems: 'center', gap: 8 }, children: [_jsx("button", { onClick: () => {
+                        }, children: [_jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: [_jsx("div", { style: { fontWeight: 700 }, children: "AI Assistant" }), _jsx("div", { style: { fontSize: 12, color: 'var(--hit-muted-foreground, rgba(255,255,255,0.65))' }, children: currentPathname || '' })] }), _jsxs("div", { style: { display: 'flex', alignItems: 'center', gap: 8 }, children: [_jsx("button", { onClick: () => {
                                             try {
                                                 if (typeof window !== 'undefined')
                                                     window.localStorage.removeItem(chatStorageKey);

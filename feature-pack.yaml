@@ -64,3 +64,10 @@ config:
       type: string
       default: gpt-4o-mini
       description: Default model for chat
+    hide_on_auth_pages:
+      type: boolean
+      default: true
+      description: |
+        Automatically hide the AI overlay on authentication pages like /login, 
+        /signup, /register, /forgot-password, etc. Set to false to show the 
+        overlay on all pages regardless of authentication state.

@@ -1,8 +1,41 @@
-"use client";
-
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+/**
+ * Check if the given pathname is an auth-related page where the AI overlay should be hidden.
+ * This prevents showing the AI button on login, signup, register, and other auth pages.
+ */
+function isAuthPage(pathname: string | undefined): boolean {
+  if (!pathname) return false;
+  const normalized = pathname.toLowerCase();
+  
+  // Common auth page patterns
+  const authPatterns = [
+    '/login',
+    '/signin',
+    '/sign-in',
+    '/signup',
+    '/sign-up',
+    '/register',
+    '/forgot-password',
+    '/reset-password',
+    '/verify-email',
+    '/verify',
+    '/auth/',
+    '/oauth/',
+    '/sso/',
+    '/mfa',
+    '/2fa',
+    '/totp',
+  ];
+  
+  return authPatterns.some(pattern => 
+    normalized === pattern || 
+    normalized.startsWith(pattern + '/') ||
+    normalized.startsWith(pattern + '?')
+  );
+}
 
 type Role = 'user' | 'assistant' | 'system';
 
@@ -98,6 +131,8 @@ export function AiOverlay(props: {
   packName?: string;
   pathname?: string;
   user?: { email?: string; roles?: string[] } | null;
+  /** Hide the overlay on auth pages like /login, /signup, etc. Defaults to true. */
+  hideOnAuthPages?: boolean;
 }) {
   // The AI overlay is a shell-level component, but it should only appear for
   // authenticated users. We use the same token source we use for API calls.
@@ -106,6 +141,7 @@ export function AiOverlay(props: {
   // client renders "token" and inserts the button).
   const [hydrated, setHydrated] = useState(false);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [currentPathname, setCurrentPathname] = useState<string | undefined>(props.pathname);
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -113,7 +149,37 @@ export function AiOverlay(props: {
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const aiStateRef = useRef<Record<string, any> | null>(null);
 
-  const shouldRender = hydrated && Boolean(authToken);
+  // Track pathname changes (for client-side navigation)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Get current pathname from window.location if not provided via props
+    const getPathname = () => props.pathname || window.location.pathname;
+    setCurrentPathname(getPathname());
+    
+    // Listen for popstate (back/forward navigation)
+    const handlePopstate = () => setCurrentPathname(getPathname());
+    window.addEventListener('popstate', handlePopstate);
+    
+    // Poll for pathname changes (handles pushState/replaceState which don't trigger popstate)
+    const interval = setInterval(() => {
+      const newPath = getPathname();
+      setCurrentPathname(prev => prev !== newPath ? newPath : prev);
+    }, 500);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopstate);
+      clearInterval(interval);
+    };
+  }, [props.pathname]);
+
+  // Determine if overlay should render:
+  // 1. Must be hydrated (client-side)
+  // 2. Must have auth token
+  // 3. Must not be on an auth page (unless hideOnAuthPages is explicitly false)
+  const hideOnAuth = props.hideOnAuthPages !== false;
+  const onAuthPage = hideOnAuth && isAuthPage(currentPathname);
+  const shouldRender = hydrated && Boolean(authToken) && !onAuthPage;
 
   // Keep token reasonably fresh in case it is set after initial render.
   useEffect(() => {
@@ -146,8 +212,8 @@ export function AiOverlay(props: {
   );
 
   const chatStorageKey = useMemo(
-    () => getChatStorageKey({ pathname: props.pathname, userEmail: props.user?.email ?? null }),
-    [props.pathname, props.user?.email]
+    () => getChatStorageKey({ pathname: currentPathname, userEmail: props.user?.email ?? null }),
+    [currentPathname, props.user?.email]
   );
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -199,14 +265,14 @@ export function AiOverlay(props: {
 
   const context = useMemo(
     () => ({
-      pathname: props.pathname,
+      pathname: currentPathname,
       routeId: props.routeId,
       packName: props.packName,
       user: props.user,
       hitConfig: typeof window !== 'undefined' ? (window as any).__HIT_CONFIG : null,
       origin: typeof window !== 'undefined' ? window.location.origin : null,
     }),
-    [props.packName, props.pathname, props.routeId, props.user]
+    [props.packName, currentPathname, props.routeId, props.user]
   );
 
   const runApproval = useCallback(async () => {
@@ -368,7 +434,7 @@ export function AiOverlay(props: {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div style={{ fontWeight: 700 }}>AI Assistant</div>
               <div style={{ fontSize: 12, color: 'var(--hit-muted-foreground, rgba(255,255,255,0.65))' }}>
-                {props.pathname || ''}
+                {currentPathname || ''}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
