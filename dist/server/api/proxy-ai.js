@@ -94,20 +94,25 @@ async function proxyRequest(req, pathSegments, method) {
         return NextResponse.json({ error: 'Failed to proxy request to AI module', path }, { status: 502 });
     }
 }
-export async function GET(req, { params }) {
-    return proxyRequest(req, params.path, 'GET');
+export async function GET(req, context) {
+    const { path } = await context.params;
+    return proxyRequest(req, path, 'GET');
 }
-export async function POST(req, { params }) {
-    return proxyRequest(req, params.path, 'POST');
+export async function POST(req, context) {
+    const { path } = await context.params;
+    return proxyRequest(req, path, 'POST');
 }
-export async function PUT(req, { params }) {
-    return proxyRequest(req, params.path, 'PUT');
+export async function PUT(req, context) {
+    const { path } = await context.params;
+    return proxyRequest(req, path, 'PUT');
 }
-export async function PATCH(req, { params }) {
-    return proxyRequest(req, params.path, 'PATCH');
+export async function PATCH(req, context) {
+    const { path } = await context.params;
+    return proxyRequest(req, path, 'PATCH');
 }
-export async function DELETE(req, { params }) {
-    return proxyRequest(req, params.path, 'DELETE');
+export async function DELETE(req, context) {
+    const { path } = await context.params;
+    return proxyRequest(req, path, 'DELETE');
 }
 export async function OPTIONS() {
     return new NextResponse(null, {

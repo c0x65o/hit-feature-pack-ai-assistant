@@ -10,7 +10,7 @@ import { extractUserFromRequest } from '../auth';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-type RouteParams = { params: { path: string[] } };
+type RouteContext = { params: Promise<{ path: string[] }> };
 
 function getAiModuleUrl(): string | null {
   const url = process.env.HIT_AI_URL;
@@ -109,20 +109,25 @@ async function proxyRequest(req: NextRequest, pathSegments: string[], method: st
   }
 }
 
-export async function GET(req: NextRequest, { params }: RouteParams) {
-  return proxyRequest(req, params.path, 'GET');
+export async function GET(req: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  return proxyRequest(req, path, 'GET');
 }
-export async function POST(req: NextRequest, { params }: RouteParams) {
-  return proxyRequest(req, params.path, 'POST');
+export async function POST(req: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  return proxyRequest(req, path, 'POST');
 }
-export async function PUT(req: NextRequest, { params }: RouteParams) {
-  return proxyRequest(req, params.path, 'PUT');
+export async function PUT(req: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  return proxyRequest(req, path, 'PUT');
 }
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  return proxyRequest(req, params.path, 'PATCH');
+export async function PATCH(req: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  return proxyRequest(req, path, 'PATCH');
 }
-export async function DELETE(req: NextRequest, { params }: RouteParams) {
-  return proxyRequest(req, params.path, 'DELETE');
+export async function DELETE(req: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  return proxyRequest(req, path, 'DELETE');
 }
 export async function OPTIONS() {
   return new NextResponse(null, {
