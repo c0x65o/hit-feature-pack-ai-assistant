@@ -47,6 +47,9 @@ export function buildMethodCatalog(caps) {
             const requiredBodyFields = Array.isArray(ep.requiredBodyFields?.[m]) ? ep.requiredBodyFields?.[m] : undefined;
             const bodyFields = Array.isArray(ep.bodyFields?.[m]) ? ep.bodyFields?.[m] : undefined;
             const queryParams = Array.isArray(ep.queryParams) ? ep.queryParams : undefined;
+            const jsonSchema = ep.jsonSchema && typeof ep.jsonSchema === 'object' ? ep.jsonSchema[m] : undefined;
+            const querySchema = ep.querySchema && typeof ep.querySchema === 'object' ? ep.querySchema[m] : undefined;
+            const responseSchema = ep.responseSchema && typeof ep.responseSchema === 'object' ? ep.responseSchema[m] : undefined;
             out.push({
                 name: methodNameFor(ep.pathTemplate, m),
                 method: m,
@@ -56,6 +59,9 @@ export function buildMethodCatalog(caps) {
                 requiredBodyFields,
                 bodyFields,
                 queryParams,
+                jsonSchema,
+                querySchema,
+                responseSchema,
                 readOnly: m === 'GET',
             });
         }
