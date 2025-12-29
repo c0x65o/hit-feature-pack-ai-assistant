@@ -372,7 +372,10 @@ export function AiOverlay(props) {
                 // so the user sees actionable debug details instead of a generic message.
                 if (err instanceof Error)
                     throw err;
-                throw new Error('AI agent did not handle the request.');
+                const fallback = safeJsonStringify(err) ||
+                    (typeof err === 'string' ? err : '') ||
+                    String(err);
+                throw new Error(`AI agent did not handle the request.\nEndpoint: /api/proxy/ai/hit/ai/agent\nerror: ${fallback}`);
             }
         }
         catch (e) {
