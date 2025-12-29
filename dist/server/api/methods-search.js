@@ -59,13 +59,24 @@ function entityBoost(q, m) {
     const qt = ` ${q} `;
     const p = (m.pathTemplate || '').toLowerCase();
     let b = 0;
+    // Strong entity type matching - user's explicit entity mention should override page context
     if (qt.includes(' contact ') || qt.includes(' contacts ')) {
         if (p.includes('/contacts'))
-            b += 8;
+            b += 12; // Increased boost
+        if (p.includes('/companies'))
+            b -= 6; // Penalty for wrong entity
     }
     if (qt.includes(' company ') || qt.includes(' companies ') || qt.includes(' customer ') || qt.includes(' customers ')) {
         if (p.includes('/companies'))
-            b += 8;
+            b += 12; // Increased boost
+        if (p.includes('/contacts'))
+            b -= 6; // Penalty for wrong entity
+    }
+    if (qt.includes(' deal ') || qt.includes(' deals ') || qt.includes(' opportunity ') || qt.includes(' opportunities ')) {
+        if (p.includes('/deals'))
+            b += 12; // Added deal boosting
+        if (p.includes('/companies'))
+            b -= 6; // Penalty for wrong entity
     }
     if (qt.includes(' activity ') || qt.includes(' activities ') || qt.includes(' call ') || qt.includes(' meeting ')) {
         if (p.includes('/activities'))
