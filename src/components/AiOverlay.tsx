@@ -342,11 +342,20 @@ export function AiOverlay(props: {
   }, [chatStorageKey, input, messages, shouldRender]);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!shouldRender || !open) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [open, messages.length, pendingApproval, shouldRender]);
+
+  useEffect(() => {
+    if (!shouldRender || !open) return;
+    // Focus the input when the overlay opens
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+  }, [open, shouldRender]);
 
   useEffect(() => {
     if (!shouldRender) return;
@@ -533,8 +542,15 @@ export function AiOverlay(props: {
       ]);
     } finally {
       setLoading(false);
+      // Refocus the input after sending
+      if (open && inputRef.current) {
+        // Use setTimeout to ensure the DOM has updated
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 0);
+      }
     }
-  }, [context, input, loading, messages]);
+  }, [context, input, loading, messages, open]);
 
   const containerStyle: React.CSSProperties = {
     position: 'fixed',
@@ -747,6 +763,7 @@ export function AiOverlay(props: {
             }}
           >
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}

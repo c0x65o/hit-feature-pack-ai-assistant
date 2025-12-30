@@ -285,11 +285,20 @@ export function AiOverlay(props) {
         return () => window.clearTimeout(t);
     }, [chatStorageKey, input, messages, shouldRender]);
     const bottomRef = useRef(null);
+    const inputRef = useRef(null);
     useEffect(() => {
         if (!shouldRender || !open)
             return;
         bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, [open, messages.length, pendingApproval, shouldRender]);
+    useEffect(() => {
+        if (!shouldRender || !open)
+            return;
+        // Focus the input when the overlay opens
+        setTimeout(() => {
+            inputRef.current?.focus();
+        }, 100);
+    }, [open, shouldRender]);
     useEffect(() => {
         if (!shouldRender)
             return;
@@ -461,8 +470,15 @@ export function AiOverlay(props) {
         }
         finally {
             setLoading(false);
+            // Refocus the input after sending
+            if (open && inputRef.current) {
+                // Use setTimeout to ensure the DOM has updated
+                setTimeout(() => {
+                    inputRef.current?.focus();
+                }, 0);
+            }
         }
-    }, [context, input, loading, messages]);
+    }, [context, input, loading, messages, open]);
     const containerStyle = {
         position: 'fixed',
         right: 16,
@@ -587,7 +603,7 @@ export function AiOverlay(props) {
                             borderTop: '1px solid var(--hit-border, rgba(255,255,255,0.12))',
                             display: 'flex',
                             gap: 8,
-                        }, children: [_jsx("input", { type: "text", value: input, onChange: (e) => setInput(e.target.value), onKeyDown: (e) => {
+                        }, children: [_jsx("input", { ref: inputRef, type: "text", value: input, onChange: (e) => setInput(e.target.value), onKeyDown: (e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
                                         send();
