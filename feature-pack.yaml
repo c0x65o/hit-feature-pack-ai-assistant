@@ -2,6 +2,7 @@
 # Global AI assistant overlay that can be mounted once at the shell level.
 
 name: ai-assistant
+title: HIT AI
 description: Global AI assistant overlay for HIT apps (shell-level)
 
 # A tiny hidden route exists purely as an install signal (so the app shell can
