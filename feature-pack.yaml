@@ -12,9 +12,30 @@ routes:
   - path: /__ai
     page: AiDebug
     roles: []
+  - path: /admin/ai/traces
+    page: AiTraces
+    roles: [admin]
+  - path: /admin/ai/traces/[correlationId]
+    page: AiTraceDetail
+    roles: [admin]
 
-# No nav contributions (overlay is global, not a sidebar item)
-nav: []
+# Admin-only nav entry for AI observability
+nav:
+  - id: ai
+    label: AI
+    icon: Sparkles
+    group: system
+    roles: [admin]
+    showWhen: authenticated
+    weight: 905
+    children:
+      - id: ai-traces
+        label: Traces
+        path: /admin/ai/traces
+        icon: Activity
+        weight: 100
+        roles: [admin]
+        showWhen: authenticated
 
 requires:
   modules:
