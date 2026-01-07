@@ -72,7 +72,15 @@ export function AiTraces() {
       setError(null);
       const limit = serverTable.query.pageSize;
       const offset = (serverTable.query.page - 1) * serverTable.query.pageSize;
-      const data = await fetchAi<RunsIndexResponse>(`/hit/ai/traces?limit=${limit}&offset=${offset}`);
+      const params = new URLSearchParams();
+      params.set('limit', String(limit));
+      params.set('offset', String(offset));
+      if (serverTable.query.search) params.set('search', serverTable.query.search);
+      const pack = (serverTable.quickFilterValues as any)?.pack;
+      const kind = (serverTable.quickFilterValues as any)?.kind;
+      if (typeof pack === 'string' && pack.trim()) params.set('pack', pack.trim());
+      if (typeof kind === 'string' && kind.trim()) params.set('kind', kind.trim());
+      const data = await fetchAi<RunsIndexResponse>(`/hit/ai/traces?${params.toString()}`);
       setRuns(Array.isArray(data?.runs) ? data.runs : []);
       setRunsDir(typeof data?.runsDir === 'string' ? data.runsDir : null);
       setTotal(typeof data?.total === 'number' ? data.total : 0);
@@ -81,7 +89,7 @@ export function AiTraces() {
     } finally {
       setLoading(false);
     }
-  }, [serverTable.query.page, serverTable.query.pageSize]);
+  }, [serverTable.query.page, serverTable.query.pageSize, serverTable.query.search, serverTable.quickFilterValues]);
 
   useEffect(() => {
     refresh();
