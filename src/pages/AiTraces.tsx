@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUi } from '@hit/ui-kit';
+import { useServerDataTableState } from '@hit/ui-kit';
 
 type RunSummary = {
   correlationId: string;
@@ -15,6 +16,9 @@ type RunsIndexResponse = {
   enabled?: boolean;
   runsDir?: string | null;
   runs?: RunSummary[];
+  total?: number;
+  limit?: number;
+  offset?: number;
 };
 
 function getAuthHeaders(): Record<string, string> {
@@ -50,22 +54,34 @@ export function AiTraces() {
   const { Page, Card, Button, DataTable, Alert, Badge } = useUi();
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [runsDir, setRunsDir] = useState<string | null>(null);
+  const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const serverTable = useServerDataTableState({
+    tableId: 'admin.ai.traces',
+    pageSize: 50,
+    initialSort: { sortBy: 'createdAt', sortOrder: 'desc' },
+    // Sorting is handled in the AI module listing (newest first); keep whitelist minimal.
+    sortWhitelist: ['createdAt', 'correlationId'],
+  });
 
   const refresh = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchAi<RunsIndexResponse>(`/hit/ai/traces?limit=200&offset=0`);
+      const limit = serverTable.query.pageSize;
+      const offset = (serverTable.query.page - 1) * serverTable.query.pageSize;
+      const data = await fetchAi<RunsIndexResponse>(`/hit/ai/traces?limit=${limit}&offset=${offset}`);
       setRuns(Array.isArray(data?.runs) ? data.runs : []);
       setRunsDir(typeof data?.runsDir === 'string' ? data.runsDir : null);
+      setTotal(typeof data?.total === 'number' ? data.total : 0);
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Failed to load AI traces'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [serverTable.query.page, serverTable.query.pageSize]);
 
   useEffect(() => {
     refresh();
@@ -107,10 +123,11 @@ export function AiTraces() {
           searchable
           exportable
           showColumnVisibility
-          tableId="admin.ai.traces"
           onRefresh={refresh}
           refreshing={loading}
           searchDebounceMs={400}
+          total={total}
+          {...serverTable.dataTable}
           columns={[
             {
               key: 'createdAt',
