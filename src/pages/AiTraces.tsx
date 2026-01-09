@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUi } from '@hit/ui-kit';
-import { useServerDataTableState } from '@hit/ui-kit';
+import { useServerDataTableState } from '@hit/ui-kit/hooks/useServerDataTableState';
 
 type RunSummary = {
   correlationId: string;

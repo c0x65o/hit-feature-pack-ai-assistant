@@ -2,7 +2,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUi } from '@hit/ui-kit';
-import { useServerDataTableState } from '@hit/ui-kit';
+import { useServerDataTableState } from '@hit/ui-kit/hooks/useServerDataTableState';
 function getAuthHeaders() {
     if (typeof window === 'undefined')
         return {};
