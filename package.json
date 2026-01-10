@@ -1,6 +1,6 @@
 {
   "name": "@hit/feature-pack-ai-core",
-  "version": "1.0.58",
+  "version": "1.0.59",
   "description": "Global AI assistant overlay for HIT apps (shell-level).",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -65,6 +65,11 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "zod": "^4.3.2"
+  },
+  "peerDependenciesMeta": {
+    "@hit/ui-kit": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@hit/ui-kit": "file:../../../packages/hit-ui-kit-ts",
