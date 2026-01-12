@@ -5,6 +5,7 @@
  */
 import { NextResponse } from 'next/server';
 import { extractUserFromRequest } from '../auth';
+import { resolveAiCoreScopeMode } from '../lib/scope-mode';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 function getAiModuleUrl() {
@@ -33,11 +34,34 @@ async function proxyRequest(req, pathSegments, method) {
     if (!user) {
         return NextResponse.json({ error: 'Unauthorized - authentication required for AI features' }, { status: 401 });
     }
+    const path = pathSegments.join('/');
+    // Enforce permissions for traces endpoints (entity-backed)
+    if (path.startsWith('hit/ai/traces')) {
+        const mode = await resolveAiCoreScopeMode(req, { entity: 'traces', verb: 'read' });
+        // Explicit branching on all four modes (no "else bucket")
+        if (mode === 'none') {
+            return NextResponse.json({ error: 'Forbidden - access denied to AI traces' }, { status: 403 });
+        }
+        else if (mode === 'own') {
+            // Traces don't have ownership fields, so 'own' mode denies access
+            return NextResponse.json({ error: 'Forbidden - traces do not support ownership-based access' }, { status: 403 });
+        }
+        else if (mode === 'ldd') {
+            // Traces don't have LDD fields, so 'ldd' mode denies access
+            return NextResponse.json({ error: 'Forbidden - traces do not support LDD-based access' }, { status: 403 });
+        }
+        else if (mode === 'any') {
+            // Allow access - continue to proxy
+        }
+        else {
+            // Fallback: deny access
+            return NextResponse.json({ error: 'Forbidden - invalid scope mode' }, { status: 403 });
+        }
+    }
     const moduleUrl = getAiModuleUrl();
     if (!moduleUrl) {
         return NextResponse.json({ error: 'AI module not configured' }, { status: 503 });
     }
-    const path = pathSegments.join('/');
     const url = new URL(req.url);
     const fullUrl = `${moduleUrl}/${path}${url.search}`;
     const headers = {

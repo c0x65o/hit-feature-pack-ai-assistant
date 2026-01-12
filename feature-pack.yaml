@@ -14,10 +14,14 @@ routes:
     roles: []
   - path: /admin/ai/traces
     page: AiTraces
-    roles: [admin]
+    roles: []
+    default_roles_allow: [admin]
+    authz: { entity: traces, verb: read, require_mode: any }
   - path: /admin/ai/traces/[correlationId]
     page: AiTraceDetail
-    roles: [admin]
+    roles: []
+    default_roles_allow: [admin]
+    authz: { entity: traces, verb: read, require_mode: any }
 
 # Admin-only nav entry for AI observability
 nav:
@@ -74,6 +78,55 @@ api:
       methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
       handler: "@hit/feature-pack-ai-core/server/api/proxy-ai"
       description: "Authenticated proxy override for the ai module."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PERMISSIONS - Action definitions (for admin-core permissions UI + runtime checks)
+# ─────────────────────────────────────────────────────────────────────────────
+permissions:
+  actions:
+    # Scope Policy Tree: ai-core (global) -> entity overrides.
+    #
+    # Scope modes:
+    # - none: deny all access for this verb/entity (hide pages + block APIs)
+    # - any: ignore scope (read everything)
+    # - own: only owned records (not applicable for traces - traces don't have ownership fields)
+    # - ldd: owner OR matching L/D/D (not applicable for traces - traces don't have LDD fields)
+    #
+    # These are mutually exclusive per node; the Security Groups UI renders them as dropdowns.
+    - key: ai-core.read.scope.none
+      label: "AI Core Read Scope = None"
+      description: "Deny all AI Core read access."
+      default_enabled: false
+    - key: ai-core.read.scope.any
+      label: "AI Core Read Scope = Any"
+      description: "Read all AI Core entities regardless of scope."
+      default_enabled: false
+    - key: ai-core.read.scope.own
+      label: "AI Core Read Scope = Own"
+      description: "Read only AI Core entities you own (not applicable for traces - traces don't have ownership fields)."
+      default_enabled: false
+    - key: ai-core.read.scope.ldd
+      label: "AI Core Read Scope = LDD"
+      description: "Read AI Core entities you own, or that match your L/D/D scope (not applicable for traces - traces don't have LDD fields)."
+      default_enabled: false
+
+    # Traces override (optional): if set, overrides ai-core.read.scope.* for traces only.
+    - key: ai-core.traces.read.scope.none
+      label: "AI Core Traces Read Scope = None"
+      description: "Deny all trace read access."
+      default_enabled: false
+    - key: ai-core.traces.read.scope.any
+      label: "AI Core Traces Read Scope = Any"
+      description: "Read traces regardless of scope."
+      default_enabled: false
+    - key: ai-core.traces.read.scope.own
+      label: "AI Core Traces Read Scope = Own"
+      description: "Read only traces you own (not applicable - traces don't have ownership fields)."
+      default_enabled: false
+    - key: ai-core.traces.read.scope.ldd
+      label: "AI Core Traces Read Scope = LDD"
+      description: "Read traces you own, or that match your L/D/D scope (not applicable - traces don't have LDD fields)."
+      default_enabled: false
 
 config:
   schema:
