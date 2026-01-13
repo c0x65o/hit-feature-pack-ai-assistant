@@ -90,7 +90,7 @@ permissions:
     # - none: deny all access for this verb/entity (hide pages + block APIs)
     # - any: ignore scope (read everything)
     # - own: only owned records (not applicable for traces - traces don't have ownership fields)
-    # - ldd: owner OR matching L/D/D (not applicable for traces - traces don't have LDD fields)
+    # - ldd: owner OR matching L/D/D (not used in core packs)
     #
     # These are mutually exclusive per node; the Security Groups UI renders them as dropdowns.
     - key: ai-core.read.scope.none
@@ -104,10 +104,6 @@ permissions:
     - key: ai-core.read.scope.own
       label: "AI Core Read Scope = Own"
       description: "Read only AI Core entities you own (not applicable for traces - traces don't have ownership fields)."
-      default_enabled: false
-    - key: ai-core.read.scope.ldd
-      label: "AI Core Read Scope = LDD"
-      description: "Read AI Core entities you own, or that match your L/D/D scope (not applicable for traces - traces don't have LDD fields)."
       default_enabled: false
 
     # Traces override (optional): if set, overrides ai-core.read.scope.* for traces only.
