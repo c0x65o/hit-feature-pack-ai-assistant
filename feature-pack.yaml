@@ -119,14 +119,6 @@ permissions:
       label: "AI Core Traces Read Scope = Any"
       description: "Read traces regardless of scope."
       default_enabled: false
-    - key: ai-core.traces.read.scope.own
-      label: "AI Core Traces Read Scope = Own"
-      description: "Read only traces you own (not applicable - traces don't have ownership fields)."
-      default_enabled: false
-    - key: ai-core.traces.read.scope.ldd
-      label: "AI Core Traces Read Scope = LDD"
-      description: "Read traces you own, or that match your L/D/D scope (not applicable - traces don't have LDD fields)."
-      default_enabled: false
 
 config:
   schema:
