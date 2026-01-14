@@ -9,7 +9,7 @@ function getAuthHeaders() {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 async function fetchAi(path) {
-    const res = await fetch(`/api/proxy/ai${path}`, {
+    const res = await fetch(`/api/ai${path}`, {
         credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
@@ -62,7 +62,7 @@ export function AiTraces() {
                 params.set('pack', pack.trim());
             if (typeof kind === 'string' && kind.trim())
                 params.set('kind', kind.trim());
-            const data = await fetchAi(`/hit/ai/traces?${params.toString()}`);
+            const data = await fetchAi(`/traces?${params.toString()}`);
             setRuns(Array.isArray(data?.runs) ? data.runs : []);
             setRunsDir(typeof data?.runsDir === 'string' ? data.runsDir : null);
             setTotal(typeof data?.total === 'number' ? data.total : 0);

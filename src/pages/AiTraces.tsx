@@ -27,7 +27,7 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 async function fetchAi<T>(path: string): Promise<T> {
-  const res = await fetch(`/api/proxy/ai${path}`, {
+  const res = await fetch(`/api/ai${path}`, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
@@ -79,7 +79,7 @@ export function AiTraces() {
       const kind = (serverTable.quickFilterValues as any)?.kind;
       if (typeof pack === 'string' && pack.trim()) params.set('pack', pack.trim());
       if (typeof kind === 'string' && kind.trim()) params.set('kind', kind.trim());
-      const data = await fetchAi<RunsIndexResponse>(`/hit/ai/traces?${params.toString()}`);
+      const data = await fetchAi<RunsIndexResponse>(`/traces?${params.toString()}`);
       setRuns(Array.isArray(data?.runs) ? data.runs : []);
       setRunsDir(typeof data?.runsDir === 'string' ? data.runsDir : null);
       setTotal(typeof data?.total === 'number' ? data.total : 0);

@@ -457,7 +457,7 @@ export function AiOverlay(props: {
 
       // Nexus-first chat (single supported path)
       try {
-        const endpoint = '/api/proxy/ai/hit/ai/chat';
+        const endpoint = '/api/ai/chat';
         const agentRes = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -516,7 +516,7 @@ export function AiOverlay(props: {
           (typeof err === 'string' ? err : '') ||
           String(err);
         throw new Error(
-          `AI request failed.\nEndpoint: /api/proxy/ai/hit/ai/chat\nerror: ${fallback}`
+          `AI request failed.\nEndpoint: /api/ai/chat\nerror: ${fallback}`
         );
       }
     } catch (e) {
@@ -546,7 +546,7 @@ export function AiOverlay(props: {
     const token = authToken || getStoredToken();
     setTraceLoading(true);
     try {
-      const res = await fetch(`/api/proxy/ai/hit/ai/traces/${encodeURIComponent(cid)}`, {
+      const res = await fetch(`/api/ai/traces/${encodeURIComponent(cid)}`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },

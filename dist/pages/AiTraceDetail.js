@@ -9,7 +9,7 @@ function getAuthHeaders() {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 async function fetchAi(path) {
-    const res = await fetch(`/api/proxy/ai${path}`, {
+    const res = await fetch(`/api/ai${path}`, {
         credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ export function AiTraceDetail(props) {
         try {
             setLoading(true);
             setError(null);
-            const data = await fetchAi(`/hit/ai/traces/${encodeURIComponent(props.correlationId)}`);
+            const data = await fetchAi(`/traces/${encodeURIComponent(props.correlationId)}`);
             setRun(data?.run ?? null);
         }
         catch (e) {

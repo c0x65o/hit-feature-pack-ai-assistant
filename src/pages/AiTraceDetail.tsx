@@ -15,7 +15,7 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 async function fetchAi<T>(path: string): Promise<T> {
-  const res = await fetch(`/api/proxy/ai${path}`, {
+  const res = await fetch(`/api/ai${path}`, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
@@ -54,9 +54,7 @@ export function AiTraceDetail(props: { correlationId: string; onNavigate?: (path
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchAi<TraceDetailResponse>(
-        `/hit/ai/traces/${encodeURIComponent(props.correlationId)}`
-      );
+      const data = await fetchAi<TraceDetailResponse>(`/traces/${encodeURIComponent(props.correlationId)}`);
       setRun((data?.run as any) ?? null);
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Failed to load trace'));
