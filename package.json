@@ -1,6 +1,6 @@
 {
   "name": "@hit/feature-pack-ai-core",
-  "version": "1.0.66",
+  "version": "1.0.67",
   "description": "Global AI assistant overlay for HIT apps (shell-level).",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -59,9 +59,6 @@
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build"
   },
-  "dependencies": {
-    "@hit/feature-pack-auth-core": "file:../hit-feature-pack-auth-core"
-  },
   "peerDependencies": {
     "@hit/feature-pack-auth-core": "*",
     "@hit/ui-kit": "*",
@@ -76,6 +73,7 @@
     }
   },
   "devDependencies": {
+    "@hit/feature-pack-auth-core": "file:../hit-feature-pack-auth-core",
     "@hit/ui-kit": "file:../../../packages/hit-ui-kit-ts",
     "@types/node": "^20",
     "@types/react": "^19.0.0",
