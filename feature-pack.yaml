@@ -68,7 +68,7 @@ permissions:
     #
     # Scope modes:
     # - none: deny all access for this verb/entity (hide pages + block APIs)
-    # - any: ignore scope (read everything)
+    # - all: ignore scope (read everything)
     # - own: only owned records (not applicable for traces - traces don't have ownership fields)
     # - ldd: owner OR matching L/D/D (not used in core packs)
     #
@@ -77,8 +77,8 @@ permissions:
       label: "AI Core Read Scope = None"
       description: "Deny all AI Core read access."
       default_enabled: false
-    - key: ai-core.read.scope.any
-      label: "AI Core Read Scope = Any"
+    - key: ai-core.read.scope.all
+      label: "AI Core Read Scope = All"
       description: "Read all AI Core entities regardless of scope."
       default_enabled: false
     - key: ai-core.read.scope.own
@@ -91,8 +91,8 @@ permissions:
       label: "AI Core Traces Read Scope = None"
       description: "Deny all trace read access."
       default_enabled: false
-    - key: ai-core.traces.read.scope.any
-      label: "AI Core Traces Read Scope = Any"
+    - key: ai-core.traces.read.scope.all
+      label: "AI Core Traces Read Scope = All"
       description: "Read traces regardless of scope."
       default_enabled: false
 
