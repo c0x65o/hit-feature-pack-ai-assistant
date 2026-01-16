@@ -5,24 +5,6 @@ name: ai-core
 title: AI
 description: Global AI assistant overlay for HIT apps (shell-level)
 
-# A tiny hidden route exists purely as an install signal (so the app shell can
-# detect this pack is enabled via .hit/generated/routes.ts) without relying on
-# hit-config having a feature_packs list.
-routes:
-  - path: /__ai
-    page: AiDebug
-    roles: []
-  - path: /admin/ai/traces
-    page: AiTraces
-    roles: []
-    default_roles_allow: [admin]
-    authz: { entity: traces, verb: read, require_mode: any }
-  - path: /admin/ai/traces/[correlationId]
-    page: AiTraceDetail
-    roles: []
-    default_roles_allow: [admin]
-    authz: { entity: traces, verb: read, require_mode: any }
-
 # Admin-only nav entry for AI observability
 nav:
   - id: ai

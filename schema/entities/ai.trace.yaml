@@ -1,0 +1,75 @@
+version: 1
+
+entities:
+  ai.trace:
+    meta:
+      titleSingular: Trace
+      titlePlural: Traces
+      descriptionPlural: AI chat traces (placeholder schema-driven UI)
+      routes:
+        # Admin-only UI
+        platforms: [web]
+        root: /admin/ai
+        list: /admin/ai/traces
+        detail: /admin/ai/traces/{id}
+      breadcrumbs:
+        - { label: AI, href: /admin/ai/traces }
+        - { label: Traces, href: /admin/ai/traces }
+      actions:
+        # Read-only for now
+        allowCreate: false
+        allowEdit: false
+        allowDelete: false
+
+    security:
+      list:
+        roles: []
+        default_roles_allow: [admin]
+        authz: { entity: traces, verb: read, require_action: ai-core.traces.read.scope.all, show_pages: true }
+      detail:
+        roles: []
+        default_roles_allow: [admin]
+        authz: { entity: traces, verb: read, require_action: ai-core.traces.read.scope.all, show_pages: true }
+      new:
+        roles: []
+        default_roles_allow: [admin]
+        authz: { entity: traces, verb: write, require_action: ai-core.traces.read.scope.all, show_pages: false }
+      edit:
+        roles: []
+        default_roles_allow: [admin]
+        authz: { entity: traces, verb: write, require_action: ai-core.traces.read.scope.all, show_pages: false }
+
+    # Backed by ai-core special endpoints (in-memory store).
+    api:
+      baseUrl: /api/ai/traces
+
+    list:
+      tableId: ai.traces
+      platforms: [web]
+      defaultVisibleOnly: true
+      pageSize: 50
+      initialSort: { sortBy: createdAt, sortOrder: desc }
+      sortWhitelist: [createdAt, id]
+      initialColumnVisibility:
+        id: true
+        createdAt: true
+        summary: true
+      columns:
+        - key: id
+          label: Correlation ID
+        - key: createdAt
+          label: Created
+          sortable: true
+        - key: summary
+          label: Summary
+          sortable: false
+
+    fields:
+      id: { type: text, label: Correlation ID }
+      createdAt: { type: datetime, label: Created, virtual: true }
+      summary: { type: text, label: Summary, virtual: true }
+
+    detail:
+      summaryTitle: Trace
+      summaryFields: [id, createdAt, summary]
+

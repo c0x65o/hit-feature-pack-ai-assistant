@@ -1,0 +1,18 @@
+version: 1
+
+# Special API routes owned by ai-core.
+# (Schema-driven CRUD routes are generated separately and should NOT be listed here.)
+api:
+  routes:
+    - path: /api/ai/chat
+      methods: [POST]
+      description: "Basic chat endpoint (TS-only)."
+
+    - path: /api/ai/traces
+      methods: [GET]
+      description: "List recent AI chat traces (in-memory)."
+
+    - path: /api/ai/traces/[id]
+      methods: [GET]
+      description: "Fetch a single AI chat trace by correlationId."
+
