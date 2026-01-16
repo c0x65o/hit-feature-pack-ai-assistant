@@ -1,0 +1,33 @@
+permissions:
+  actions:
+    # Scope Policy Tree: ai-core (global) -> entity overrides.
+    #
+    # Scope modes:
+    # - none: deny all access for this verb/entity (hide pages + block APIs)
+    # - all: ignore scope (read everything)
+    # - own: only owned records (not applicable for traces - traces don't have ownership fields)
+    # - ldd: owner OR matching L/D/D (not used in core packs)
+    #
+    # These are mutually exclusive per node; the Security Groups UI renders them as dropdowns.
+    - key: ai-core.read.scope.none
+      label: "AI Core Read Scope = None"
+      description: "Deny all AI Core read access."
+      default_enabled: false
+    - key: ai-core.read.scope.all
+      label: "AI Core Read Scope = All"
+      description: "Read all AI Core entities regardless of scope."
+      default_enabled: false
+    - key: ai-core.read.scope.own
+      label: "AI Core Read Scope = Own"
+      description: "Read only AI Core entities you own (not applicable for traces - traces don't have ownership fields)."
+      default_enabled: false
+
+    # Traces override (optional): if set, overrides ai-core.read.scope.* for traces only.
+    - key: ai-core.traces.read.scope.none
+      label: "AI Core Traces Read Scope = None"
+      description: "Deny all trace read access."
+      default_enabled: false
+    - key: ai-core.traces.read.scope.all
+      label: "AI Core Traces Read Scope = All"
+      description: "Read traces regardless of scope."
+      default_enabled: false
