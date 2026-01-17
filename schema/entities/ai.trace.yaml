@@ -55,14 +55,9 @@ entities:
         createdAt: true
         summary: true
       columns:
-        - key: id
-          label: Correlation ID
-        - key: createdAt
-          label: Created
-          sortable: true
-        - key: summary
-          label: Summary
-          sortable: false
+        - id
+        - createdAt
+        - summary
 
     fields:
       id: { type: text, label: Correlation ID }
