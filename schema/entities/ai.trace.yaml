@@ -52,12 +52,8 @@ entities:
       sortWhitelist: [createdAt, id]
       initialColumnVisibility:
         id: true
-        createdAt: true
-        summary: true
       columns:
         - id
-        - createdAt
-        - summary
 
     fields:
       id: { type: text, label: Correlation ID }
