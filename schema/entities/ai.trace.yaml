@@ -57,8 +57,18 @@ entities:
 
     fields:
       id: { type: text, label: Correlation ID }
-      createdAt: { type: datetime, label: Created, virtual: true }
-      summary: { type: text, label: Summary, virtual: true }
+      createdAt:
+        type: datetime
+        label: Created
+        virtual: true
+        compute:
+          kind: runtime
+      summary:
+        type: text
+        label: Summary
+        virtual: true
+        compute:
+          kind: runtime
 
     detail:
       summaryTitle: Trace
