@@ -23,20 +23,12 @@ entities:
 
     security:
       list:
-        roles: []
-        default_roles_allow: [admin]
         authz: { entity: traces, verb: read, require_action: ai-core.traces.read.scope.all, show_pages: true }
       detail:
-        roles: []
-        default_roles_allow: [admin]
         authz: { entity: traces, verb: read, require_action: ai-core.traces.read.scope.all, show_pages: true }
       new:
-        roles: []
-        default_roles_allow: [admin]
         authz: { entity: traces, verb: write, require_action: ai-core.traces.read.scope.all, show_pages: false }
       edit:
-        roles: []
-        default_roles_allow: [admin]
         authz: { entity: traces, verb: write, require_action: ai-core.traces.read.scope.all, show_pages: false }
 
     # Backed by ai-core special endpoints (in-memory store).
